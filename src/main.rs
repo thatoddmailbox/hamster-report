@@ -1,3 +1,5 @@
+use chrono::NaiveDateTime;
+use csv::Writer;
 use std::boxed::Box;
 use std::error::Error;
 use std::path::PathBuf;
@@ -12,8 +14,6 @@ struct Opt {
 
 	#[structopt(short, long)]
 	category: Option<String>
-	// from: String,
-	// to: String
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -45,6 +45,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let row = category_id_cursor.next()?;
 	let category_id = row.unwrap()[0].as_integer().unwrap();
 
+	// open the csv
+	let mut wtr = Writer::from_path("output.csv")?;
+
+	wtr.write_record(&["Activity", "Description", "Start", "End", "Time"])?;
+
 	let mut facts_cursor = connection.prepare(
 		"
 		SELECT activities.name, facts.description, facts.start_time, facts.end_time FROM facts
@@ -54,8 +59,26 @@ fn main() -> Result<(), Box<dyn Error>> {
 	).unwrap().cursor();
 	facts_cursor.bind(&[Value::Integer(category_id)])?;
 	while let Some(row) = facts_cursor.next().unwrap() {
-		println!("{:#?}", row);
+		let activity_name = row[0].as_string().unwrap();
+		let description = row[1].as_string().unwrap();
+		let start_string = row[2].as_string().unwrap();
+		let end_string = row[3].as_string().unwrap();
+
+		let start = NaiveDateTime::parse_from_str(start_string, "%Y-%m-%d %H:%M:%S").unwrap();
+		let end = NaiveDateTime::parse_from_str(end_string, "%Y-%m-%d %H:%M:%S").unwrap();
+
+		let duration_seconds = (end - start).num_seconds();
+
+		wtr.write_record(&[
+			activity_name,
+			description,
+			start_string,
+			end_string,
+			duration_seconds.to_string().as_str()
+		])?;
 	}
+
+	wtr.flush()?;
 
 	Ok(())
 }
