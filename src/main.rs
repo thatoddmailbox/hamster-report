@@ -1,11 +1,22 @@
+use bigdecimal::BigDecimal;
 use chrono::NaiveDateTime;
 use csv::Writer;
 use std::boxed::Box;
 use std::error::Error;
 use std::path::PathBuf;
+use structopt::clap::arg_enum;
 use structopt::StructOpt;
 use sqlite;
 use sqlite::Value;
+
+arg_enum! {
+	#[derive(Debug, Copy, Clone)]
+	enum DurationType {
+		Seconds,
+		Minutes,
+		Hours
+	}
+}
 
 #[derive(Debug, StructOpt)]
 struct Opt {
@@ -13,7 +24,10 @@ struct Opt {
 	database: PathBuf,
 
 	#[structopt(short, long)]
-	category: Option<String>
+	category: Option<String>,
+
+	#[structopt(short = "t", long)]
+	duration_type: DurationType
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -47,9 +61,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 	// open the csv
 	let mut wtr = Writer::from_path("output.csv")?;
-
 	wtr.write_record(&["Activity", "Description", "Start", "End", "Time"])?;
 
+	// write the facts
 	let mut facts_cursor = connection.prepare(
 		"
 		SELECT activities.name, facts.description, facts.start_time, facts.end_time FROM facts
@@ -68,13 +82,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 		let end = NaiveDateTime::parse_from_str(end_string, "%Y-%m-%d %H:%M:%S").unwrap();
 
 		let duration_seconds = (end - start).num_seconds();
+		let duration = BigDecimal::from(duration_seconds);
+
+		let duration_value: BigDecimal = duration / match opt.duration_type {
+			DurationType::Seconds => 1,
+			DurationType::Minutes => 60,
+			DurationType::Hours => 60 * 60,
+		};
 
 		wtr.write_record(&[
 			activity_name,
 			description,
 			start_string,
 			end_string,
-			duration_seconds.to_string().as_str()
+			duration_value.round(3).to_string().as_str()
 		])?;
 	}
 
