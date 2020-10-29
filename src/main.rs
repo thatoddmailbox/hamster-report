@@ -23,6 +23,9 @@ struct Opt {
 	#[structopt(short, long)]
 	database: PathBuf,
 
+	#[structopt(short, long, default_value="output.csv")]
+	output: PathBuf,
+
 	#[structopt(short, long)]
 	category: Option<String>,
 
@@ -60,7 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 	let category_id = row.unwrap()[0].as_integer().unwrap();
 
 	// open the csv
-	let mut wtr = Writer::from_path("output.csv")?;
+	let mut wtr = Writer::from_path(opt.output)?;
 	wtr.write_record(&["Activity", "Description", "Start", "End", "Time"])?;
 
 	// write the facts
