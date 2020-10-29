@@ -71,6 +71,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		WHERE activities.category_id = ?
 		"
 	).unwrap().cursor();
+	let mut total = BigDecimal::from(0);
 	facts_cursor.bind(&[Value::Integer(category_id)])?;
 	while let Some(row) = facts_cursor.next().unwrap() {
 		let activity_name = row[0].as_string().unwrap();
@@ -97,7 +98,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 			end_string,
 			duration_value.round(3).to_string().as_str()
 		])?;
+
+		total += duration_value;
 	}
+
+	wtr.write_record(&[
+		"", "", "", "Total", total.round(3).to_string().as_str()
+	])?;
 
 	wtr.flush()?;
 
